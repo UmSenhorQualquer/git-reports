@@ -9,12 +9,11 @@ def jsonconverter(o):
 def find_gitrepos(initial_path):
 
     repos = []
-    for name in os.listdir('.'):
+    for name in os.listdir(initial_path):
         path = os.path.join(initial_path, name)
         if os.path.isdir(path):
             repos.append(path)
             command = ["git","submodule", "foreach", "--recursive"]
-            
             p = subprocess.Popen(command, 
                 stdout=subprocess.PIPE, 
                 stderr=subprocess.PIPE, 
@@ -32,7 +31,7 @@ def find_gitrepos(initial_path):
 
 
 
-def gitstats_per_user(path, recursive=False, since=None, until=None, authors_emails={} ):
+def gitstats_per_user(path, recursive=False, since=None, until=None, authors_emails={}, use_paths=None, filterby_emails=None ):
     """
     :param str path: Path to analyse. 
                      If the recursive is false, 
@@ -49,11 +48,16 @@ def gitstats_per_user(path, recursive=False, since=None, until=None, authors_ema
             ...
         }
     """
+    if use_paths is None:
+        directories = [path] if not recursive else find_gitrepos(path)
+    else:
+        directories = use_paths
 
-    directories = [path] if not recursive else find_gitrepos(path)
-
+    authors = {}
+    emails  = {}
     for directory in directories:
-        
+        print(directory)
+
         command = ["git","log","--shortstat","--all"]
         if since: command += ['--since', since.strftime('%Y.%m.%d')]
         if until: command += ['--until', until.strftime('%Y.%m.%d')]
@@ -64,8 +68,6 @@ def gitstats_per_user(path, recursive=False, since=None, until=None, authors_ema
             cwd=directory)
         output, _ = p.communicate()
         output    = output.decode()
-
-        authors = {}
 
         for commit in output.split('commit ')[1:]:
             lines = commit.split('\n')
@@ -79,7 +81,8 @@ def gitstats_per_user(path, recursive=False, since=None, until=None, authors_ema
                 if row.startswith('Author:'):
                     author = row[8:]
                     author = parse("{} <{}>", author)
-                    author, email = author.fixed
+                    author, email = author.fixed 
+                    emails[author] = email
                     if email in authors_emails:
                         author = authors_emails[email]
                 elif row.startswith('Date:'):
@@ -113,7 +116,9 @@ def gitstats_per_user(path, recursive=False, since=None, until=None, authors_ema
                             if res:
                                 insertions = res.fixed[0]
                     
-
+            if filterby_emails and email not in filterby_emails:
+                continue
+                
             if author not in authors: authors[author] = []
             
             authors[author].append({
@@ -126,7 +131,7 @@ def gitstats_per_user(path, recursive=False, since=None, until=None, authors_ema
         for author, commits in authors.items():
             authors[author] = sorted(commits, key=lambda x: x['date'])
 
-        return authors
+    return authors, directories, emails
 
 
 def main():
@@ -136,7 +141,7 @@ def main():
     parser.add_argument('--format', type=str, help='Output format')
     args = parser.parse_args()
 
-    data = gitstats_per_user(args.path, args.recursive)
+    data, _, _ = gitstats_per_user(args.path, args.recursive)
 
     if args.format=='json':
         sys.stdout.write(json.dumps(data, default=jsonconverter))

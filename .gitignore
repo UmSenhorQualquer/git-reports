@@ -102,3 +102,9 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+server/apps-cache/
+
+server/git-report-config\.json
+
+server/lockfile\.txt

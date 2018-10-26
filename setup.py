@@ -18,6 +18,8 @@ setup(
     packages = find_packages(),
     install_requires = [
         'parse',
+        'django',
+        'pyforms-web'
     ],
     entry_points={
         'console_scripts': [
